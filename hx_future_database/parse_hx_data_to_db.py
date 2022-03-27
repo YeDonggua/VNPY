@@ -2,6 +2,7 @@ import os
 import sys
 import argparse
 import pandas as pd
+import pickle5 as pickle
 
 from glob import glob
 from tqdm import tqdm
@@ -50,7 +51,12 @@ def process_single_pickle_file(file_path):
     # if your os is unix-based please change the '\\' to '/'
     instrument = file_path.split('\\')[-1].split('_')[0]
     date_str = file_path.split('\\')[-1].split('_')[1].split('.')[0]
-    df = pd.read_pickle(file_path, compression='gzip')
+
+    try:
+        df = pd.read_pickle(file_path, compression='gzip')
+    except ValueError:
+        with open(file_path, 'rb') as f:
+            df = pickle.load(f)
 
     df['symbol'] = instrument
     df['name'] = instrument
@@ -58,6 +64,7 @@ def process_single_pickle_file(file_path):
         df['datetime'] = df['t'].apply(t_to_datetime, args=(date_str,))
         del df['t']
         del df['mp']
+        df.rename(columns={'pcx': 'last_pcx'}, inplace=True)
     elif 'time' in df.columns and 'milsec' in df.columns:
         df['datetime'] = df[['time', 'milsec']].apply(time_milsec_to_datetime, args=(date_str,), axis=1)
         del df['time'], df['milsec']
@@ -70,8 +77,8 @@ def process_single_pickle_file(file_path):
 def main(args):
     file_list = glob(args.data_file_dir + '/' + f'*.pkl')
 
-    total_list = Parallel(n_jobs=8)(delayed(process_single_pickle_file)(file) for file in tqdm(file_list))
-    # total_list = [process_single_pickle_file(file) for file in tqdm(file_list)]
+    # total_list = Parallel(n_jobs=8)(delayed(process_single_pickle_file)(file) for file in tqdm(file_list))
+    total_list = [process_single_pickle_file(file) for file in tqdm(file_list)]
     df = pd.concat(total_list, ignore_index=True)
     df['exchange'] = args.exchange
     df.rename(

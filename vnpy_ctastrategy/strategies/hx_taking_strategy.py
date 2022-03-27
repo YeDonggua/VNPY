@@ -85,10 +85,10 @@ class HXTakingStrategy(TargetPosTemplate):
         except ValueError:
             with open(self.setting['signal_df_path'], 'rb') as f:
                 signal_df = pickle.load(f)
-        if self.setting['exchange'] == Exchange.SHFE:
-            signal_df['datetime'] = signal_df[['time', 'date','milsec']].apply(time_milsec_to_datetime, axis=1)
-        elif self.setting['exchange'] == Exchange.CFFEX:
-            signal_df['datetime'] = signal_df[['t', 'date']].apply(t_to_datetime, axis=1)
+        # if self.setting['exchange'] == Exchange.SHFE:
+        signal_df['datetime'] = signal_df[['time', 'date', 'milsec']].apply(time_milsec_to_datetime, axis=1)
+        # elif self.setting['exchange'] == Exchange.CFFEX:
+        #     signal_df['datetime'] = signal_df[['t', 'date']].apply(t_to_datetime, axis=1)
         signal_df.set_index('datetime', inplace=True)
         self.signal_dict = signal_df[['pred']].to_dict('index')
 
