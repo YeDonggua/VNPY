@@ -56,8 +56,8 @@ for fold, p in params.items():
         end=p['end'],
         rate=0.3/10000,
         slippage=0.,
-        size=200,                # 10 / 200
-        pricetick=.2,            # 1. / 0.2
+        size=200,                # 10 / 200  合约乘数
+        pricetick=.2,            # 1. / 0.2  最小变动价位
         capital=1_000_000,
         mode=BacktestingMode.TICK
     )

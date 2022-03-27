@@ -129,11 +129,14 @@ class HXTakingStrategy(TargetPosTemplate):
         signal = pred['pred']
 
         if signal > self.threshold:
+            if self.pos <= 0:
+                self.entry_tick = tick
             self.set_target_pos(self.fixed_size)
-            self.entry_tick = tick
+
         elif signal < -self.threshold:
+            if self.pos >= 0:
+                self.entry_tick = tick
             self.set_target_pos(-self.fixed_size)
-            self.entry_tick = tick
 
     def on_tick(self, tick: TickData):
         """
