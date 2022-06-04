@@ -48,15 +48,14 @@ def time_milsec_to_datetime(row):
     return dt
 
 
-class HXTakingStrategy(TargetPosTemplate):
+class HXTakingDoubleThresholdStrategy(TargetPosTemplate):
     """"""
 
     author = "Ye Wenxuan"
 
     threshold = 1e-4
     fixed_size = 1
-    trailing_percent = 0.8
-    stop_profit = 0.2 * 50
+    threshold_close = 1e-4
 
     target_pos = 0
     entry_tick = None
@@ -64,8 +63,7 @@ class HXTakingStrategy(TargetPosTemplate):
     parameters = [
         "threshold",
         "fixed_size",
-        "trailing_percent",
-        "stop_profit"
+        "threshold_close"
     ]
     variables = [
         "target_pos",
@@ -94,6 +92,11 @@ class HXTakingStrategy(TargetPosTemplate):
         # elif self.setting['exchange'] == Exchange.CFFEX:
         #     signal_df['datetime'] = signal_df[['t', 'date']].apply(t_to_datetime, axis=1)
         signal_df.set_index('datetime', inplace=True)
+        if 'prob_0' in signal_df:
+            signal_df['pred'] = signal_df['prob_2'] - signal_df['prob_0']
+        # smoothing
+        gb = signal_df.groupby(['date', 'day_night'])
+        signal_df['pred'] = gb['pred'].apply(lambda x: x.ewm(0.5).mean())
         self.signal_dict = signal_df[['pred']].to_dict('index')
 
     def on_start(self):
@@ -133,8 +136,6 @@ class HXTakingStrategy(TargetPosTemplate):
         signal = pred['pred']
 
         if self.pos == 0:
-            self.intra_trade_high = tick.last_price
-            self.intra_trade_low = tick.last_price
             if signal > self.threshold:
                 if self.pos <= 0:
                     self.entry_tick = tick
@@ -146,26 +147,17 @@ class HXTakingStrategy(TargetPosTemplate):
                 self.set_target_pos(-self.fixed_size)
 
         elif self.pos > 0:
-            self.intra_trade_high = max(self.intra_trade_high, tick.last_price)
-            self.intra_trade_low = tick.last_price
-
-            long_stop = self.intra_trade_high * (1 - self.trailing_percent / 100)
-
-            if tick.last_price <= long_stop or tick.bid_price_1 - self.entry_tick.ask_price_1 > self.stop_profit:
+            if signal <= - self.threshold_close:
                 self.set_target_pos(0)
         elif self.pos < 0:
-            self.intra_trade_low = min(self.intra_trade_low, tick.last_price)
-            self.intra_trade_high = tick.last_price
-            short_stop = self.intra_trade_low * \
-                         (1 + self.trailing_percent / 100)
-            if tick.last_price >= short_stop or self.entry_tick.bid_price_1 - tick.ask_price_1 > self.stop_profit:
+            if signal >= self.threshold_close:
                 self.set_target_pos(0)
 
     def on_tick(self, tick: TickData):
         """
         Callback of new tick data update.
         """
-        super(HXTakingStrategy, self).on_tick(tick)
+        super(HXTakingDoubleThresholdStrategy, self).on_tick(tick)
         self.calculate_target_pos(tick)
 
     def on_bar(self, bar: BarData):
@@ -178,7 +170,7 @@ class HXTakingStrategy(TargetPosTemplate):
         """
         Callback of new order data update.
         """
-        super(HXTakingStrategy, self).on_order(order)
+        super(HXTakingDoubleThresholdStrategy, self).on_order(order)
 
     def on_trade(self, trade: TradeData):
         """

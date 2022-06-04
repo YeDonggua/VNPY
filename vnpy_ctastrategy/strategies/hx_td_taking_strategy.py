@@ -1,5 +1,6 @@
 import pandas as pd
 import pickle5 as pickle
+# import pickle as pickle
 from datetime import datetime, timedelta
 from vnpy.trader.constant import Exchange, Status, Direction, Offset
 from vnpy_ctastrategy import (
@@ -48,7 +49,7 @@ def time_milsec_to_datetime(row):
     return dt
 
 
-class HXTakingStrategy(TargetPosTemplate):
+class HXTDTakingStrategy(TargetPosTemplate):
     """"""
 
     author = "Ye Wenxuan"
@@ -60,6 +61,8 @@ class HXTakingStrategy(TargetPosTemplate):
 
     target_pos = 0
     entry_tick = None
+    intra_trade_high = -float('inf')
+    intra_trade_low = float('inf')
 
     parameters = [
         "threshold",
@@ -69,7 +72,9 @@ class HXTakingStrategy(TargetPosTemplate):
     ]
     variables = [
         "target_pos",
-        "entry_tick"
+        "entry_tick",
+        "intra_trade_high",
+        "intra_trade_low"
     ]
 
     def __init__(self, cta_engine, strategy_name, vt_symbol, setting):
@@ -94,7 +99,12 @@ class HXTakingStrategy(TargetPosTemplate):
         # elif self.setting['exchange'] == Exchange.CFFEX:
         #     signal_df['datetime'] = signal_df[['t', 'date']].apply(t_to_datetime, axis=1)
         signal_df.set_index('datetime', inplace=True)
-        self.signal_dict = signal_df[['pred']].to_dict('index')
+        signal_df['pred'] = signal_df['prob_2'] - signal_df['prob_0']
+        # smoothing
+        gb = signal_df.groupby(['date', 'day_night'])
+        signal_df['pred'] = gb['pred'].apply(lambda x: x.ewm(0.7).mean())
+
+        self.signal_dict = signal_df[['pred', 'prob_0', 'prob_1', 'prob_2']].to_dict('index')
 
     def on_start(self):
         """
@@ -121,26 +131,24 @@ class HXTakingStrategy(TargetPosTemplate):
                 self.set_target_pos(0)
                 return
 
-        # 10秒即平
-        # if self.target_pos != 0 and (tick.datetime - self.entry_tick.datetime).seconds >= 10:
-        #     self.set_target_pos(0)
-        #     return
-
         # 读取事先算好的信号
         pred = self.signal_dict.get(tick.datetime, None)
         if not pred:
             return
-        signal = pred['pred']
 
+        # if self.pos > 0 and pred['prob_2'] - pred['prob_0'] <= 0.2:
+        #     self.set_target_pos(0)
+        # elif self.pos < 0 and pred['prob_2'] - pred['prob_0'] >= -0.2:
+        #     self.set_target_pos(0)
         if self.pos == 0:
             self.intra_trade_high = tick.last_price
             self.intra_trade_low = tick.last_price
-            if signal > self.threshold:
+            if pred['pred'] > self.threshold and pred['prob_1'] < 0.3:
                 if self.pos <= 0:
                     self.entry_tick = tick
                 self.set_target_pos(self.fixed_size)
 
-            elif signal < -self.threshold:
+            elif pred['pred'] < - self.threshold and pred['prob_1'] < 0.3:
                 if self.pos >= 0:
                     self.entry_tick = tick
                 self.set_target_pos(-self.fixed_size)
@@ -165,7 +173,7 @@ class HXTakingStrategy(TargetPosTemplate):
         """
         Callback of new tick data update.
         """
-        super(HXTakingStrategy, self).on_tick(tick)
+        super(HXTDTakingStrategy, self).on_tick(tick)
         self.calculate_target_pos(tick)
 
     def on_bar(self, bar: BarData):
@@ -178,7 +186,7 @@ class HXTakingStrategy(TargetPosTemplate):
         """
         Callback of new order data update.
         """
-        super(HXTakingStrategy, self).on_order(order)
+        super(HXTDTakingStrategy, self).on_order(order)
 
     def on_trade(self, trade: TradeData):
         """

@@ -38,3 +38,10 @@ _templates
 
 # Config
 vnpy/trader/setting.py
+
+
+# results
+*.csv
+*.pkl
+*.parquet
+*.feather
