@@ -5,7 +5,7 @@ from tqdm import tqdm
 from typing import List
 from datetime import datetime
 from itertools import product
-from joblib import Parallel, delayed
+from multiprocessing import Pool
 
 
 from vnpy.trader.constant import Interval, Exchange
@@ -105,7 +105,7 @@ if __name__ == '__main__':
         'close_time_list': [(11, 30), (15, 50)]
     }
     strategy_params_grid = {
-        'threshold': np.arange(1.0e-4, 2.5e-4, 0.1e-4),
+        'threshold': np.arange(50, 90, 5),
         'threshold_close': [-1.8e-4, 1.7e-4, 0.1e-5],  #  np.arange(0.02, 0.2, 0.02),
     }
 
@@ -118,7 +118,10 @@ if __name__ == '__main__':
     for param in param_list:
         param.update(strategy_fixed_params)
 
-    res_l = [run_single_bkt(param,) for param in tqdm(param_list)]
+    with Pool(4) as p:  # 如果爆内存就调小进程池数量
+        res_l = list(tqdm(p.imap(run_single_bkt, param_list), total=len(param_list)))
+
+    # res_l = [run_single_bkt(param,) for param in tqdm(param_list)]
     # res_l = Parallel(n_jobs=4)(delayed(run_single_bkt)(e, param) for param in tqdm(param_list))
     res_df = pd.DataFrame.from_records(res_l)
     res_df.to_pickle('./optimization_result.pkl')

@@ -69,7 +69,7 @@ for fold, p in params.items():
                             "signal_df_path": p['path'],
                             "exchange": Exchange.CFFEX,  # Exchange.SHFE / Exchange.CFFEX
                             "fixed_size": 1,       # 50 / 1
-                            "threshold": 0.65,
+                            "threshold": 70,
                             "threshold_close": 0.2,
                             # "trailing_percent": 0.02,
                             # "stop_profit": 6.,
